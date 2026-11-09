@@ -4,6 +4,8 @@ import sys
 import struct
 from errno import (EADDRINUSE, EBUSY, EINVAL)
 
+from typing import Optional
+
 from bluetooth.btcommon import *
 import bluetooth._bluetooth as _bt
 from bluetooth._bluetooth import HCI, RFCOMM, L2CAP, SCO, SOL_L2CAP, \
@@ -13,8 +15,8 @@ get_byte = int
 
 # ============== SDP service registration and unregistration ============
 
-def discover_devices (duration=8, flush_cache=True, lookup_names=False,
-                      lookup_class=False, device_id=-1, iac=IAC_GIAC):
+def discover_devices (duration: int = 8, flush_cache: bool = True, lookup_names: bool = False,
+                      lookup_class: bool = False, device_id: int = -1, iac: int = IAC_GIAC):
     if device_id == -1:
         device_id = _bt.hci_get_route()
 
@@ -29,7 +31,7 @@ def discover_devices (duration=8, flush_cache=True, lookup_names=False,
         "bluetooth adapter: " + e.args[1])
 
     if lookup_names:
-        pairs = []
+        pairs: list[tuple[str, str, int | None]] = []
         for item in results:
             if lookup_class:
                 addr, dev_class = item
@@ -160,7 +162,7 @@ def _get_available_ports(protocol):
 class BluetoothSocket:
     __doc__ = _bt.btsocket.__doc__
 
-    def __init__ (self, proto = RFCOMM, _sock=None):
+    def __init__ (self, proto: int = RFCOMM, _sock: Optional[_bt.btsocket] = None):
         if _sock is None:
             _sock = _bt.btsocket (proto)
         self._sock = _sock
@@ -253,8 +255,8 @@ class BluetoothSocket:
     del _m, _s
 
 
-def advertise_service (sock, name, service_id = "", service_classes = [], \
-        profiles = [], provider = "", description = "", protocols = []):
+def advertise_service (sock: BluetoothSocket, name, service_id = "", service_classes: list[str] = [], \
+        profiles: list[tuple[str, int]] = [], provider = "", description = "", protocols: list[str] = []):
     if service_id != "" and not is_valid_uuid (service_id):
         raise ValueError ("invalid UUID specified for service_id")
     for uuid in service_classes:
@@ -280,7 +282,7 @@ def stop_advertising (sock):
     except _bt.error as e:
         raise BluetoothError (*e.args)
 
-def find_service (name = None, uuid = None, address = None):
+def find_service (name = None, uuid: str | None = None, address = None):
     if not address:
         devices = discover_devices ()
     else:
@@ -317,7 +319,7 @@ def find_service (name = None, uuid = None, address = None):
     return results
 
 # ================ BlueZ internal methods ================
-def _gethcisock (device_id = -1):
+def _gethcisock (device_id: int = -1):
     try:
         sock = _bt.hci_open_dev (device_id)
     except _bt.error as e:
@@ -325,21 +327,21 @@ def _gethcisock (device_id = -1):
                               e.args[1])
     return sock
 
-def get_acl_conn_handle (hci_sock, addr):
+def get_acl_conn_handle (hci_sock: _bt.btsocket, addr: str):
     hci_fd = hci_sock.fileno ()
     reqstr = struct.pack ("6sB17s", _bt.str2ba (addr),
             _bt.ACL_LINK, b"\0" * 17)
     request = array.array ("b", reqstr)
     try:
-        fcntl.ioctl (hci_fd, _bt.HCIGETCONNINFO, request, 1)
+        fcntl.ioctl (hci_fd, _bt.HCIGETCONNINFO, request, True)
     except OSError as e:
         raise BluetoothError (e.args[0], "There is no ACL connection to %s" % addr)
 
     # XXX should this be "<8xH14x"?
-    handle = struct.unpack ("8xH14x", request.tostring ())[0]
+    handle = struct.unpack ("8xH14x", request.tobytes ())[0]
     return handle
 
-def write_flush_timeout (addr, timeout):
+def write_flush_timeout (addr: str, timeout: int):
     hci_sock = _bt.hci_open_dev ()
     # get the ACL connection handle to the remote device
     handle = get_acl_conn_handle (hci_sock, addr)
@@ -352,7 +354,7 @@ def write_flush_timeout (addr, timeout):
     assert rhandle == handle
     assert status == 0
 
-def read_flush_timeout (addr):
+def read_flush_timeout (addr: str):
     hci_sock = _bt.hci_open_dev ()
     # get the ACL connection handle to the remote device
     handle = get_acl_conn_handle (hci_sock, addr)
@@ -368,7 +370,7 @@ def read_flush_timeout (addr):
     return fto
 
 # =============== DeviceDiscoverer ==================
-def byte_to_signed_int(byte_):
+def byte_to_signed_int(byte_: int):
     if byte_ > 127:
         return byte_ - 256
     else:
@@ -398,9 +400,9 @@ class DeviceDiscoverer:
         self.names_to_find = {}
         self.names_found = {}
 
-    def find_devices (self, lookup_names=True,
-            duration=8,
-            flush_cache=True):
+    def find_devices (self, lookup_names: bool = True,
+            duration: int = 8,
+            flush_cache: bool = True):
         """
         find_devices (lookup_names=True, service_name=None,
                        duration=8, flush_cache=True)

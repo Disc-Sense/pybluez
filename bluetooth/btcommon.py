@@ -1,6 +1,8 @@
 import sys
 import struct
 import binascii
+from typing import Any, Literal, overload
+from typing_extensions import Buffer, Sequence
 
 L2CAP=0
 RFCOMM=3
@@ -179,7 +181,7 @@ IAC_LIAC = 0x9e8b00
 class BluetoothError (IOError):
     pass
 
-def is_valid_address (s):
+def is_valid_address (s: str):
     """returns True if address is a valid Bluetooth address.
 
     valid address are always strings of the form XX:XX:XX:XX:XX:XX
@@ -195,7 +197,7 @@ def is_valid_address (s):
         return False
     return True
 
-def is_valid_uuid (uuid):
+def is_valid_uuid (uuid: str):
     """
     is_valid_uuid (uuid) -> bool
 
@@ -231,7 +233,7 @@ def is_valid_uuid (uuid):
         return False
     return True
 
-def to_full_uuid (uuid):
+def to_full_uuid (uuid: str):
     """
     converts a short 16-bit or 32-bit reserved UUID to a full 128-bit Bluetooth
     UUID.
@@ -282,7 +284,7 @@ def sdp_parse_uuid (data, size):
         return "%08X-%04X-%04X-%04X-%04X%08X" % struct.unpack ("!IHHHHI", data)
     else: return ValueError ("invalid UUID size")
 
-def sdp_parse_int (data, size, signed):
+def sdp_parse_int (data, size: int, signed: bool):
     fmts = { 1 : "!b" , 2 : "!h" , 4 : "!i" , 8 : "!q" , 16 : "!qq" }
     fmt = fmts[size]
     if not signed: fmt = fmt.upper ()
@@ -346,10 +348,31 @@ def sdp_parse_raw_record (data):
         record[attrid] = attrval
     return record
 
-def sdp_make_data_element (type, value):
-    def maketsd (tdesc, sdesc):
+@overload
+def sdp_make_data_element (type: Literal["Nil"], value: Any) -> bytes: ...
+@overload
+def sdp_make_data_element (type: Literal["UInt8"] | Literal["UInt16"] | Literal["UInt32"]
+                           | Literal["UInt64"] | Literal["SInt8"] | Literal["SInt16"]
+                           | Literal["SInt32"] | Literal["SInt64"], value: int) -> bytes: ...
+@overload
+def sdp_make_data_element (type: Literal["UInt128"], value: int) -> bytes: ...
+@overload
+def sdp_make_data_element (type: Literal["SInt128"], value: int) -> bytes: ...
+@overload
+def sdp_make_data_element (type: Literal["UUID"], value: str | Buffer) -> bytes: ...
+@overload
+def sdp_make_data_element (type: Literal["String"] | Literal["URL"], value: str) -> bytes: ...
+@overload
+def sdp_make_data_element (type: Literal["Bool"], value: bool) -> bytes: ...
+@overload
+def sdp_make_data_element (type: Literal["ElemSeq"], value: Sequence[tuple[Any, Any]]) -> bytes: ...
+@overload
+def sdp_make_data_element (type: Literal["AltElemSeq"], value: Sequence[tuple[Any, Any]]) -> bytes: ...
+
+def sdp_make_data_element (type: str, value: Any) -> bytes | None:
+    def maketsd (tdesc: int, sdesc: int):
         return struct.pack ("B", (tdesc << 3) | sdesc)
-    def maketsdl (tdesc, size):
+    def maketsdl (tdesc: int, size: int):
         if   size < (1<<8):  return struct.pack ("!BB", tdesc << 3 | 5, size)
         elif size < (1<<16): return struct.pack ("!BH", tdesc << 3 | 6, size)
         else:                return struct.pack ("!BI", tdesc << 3 | 7, size)
@@ -367,8 +390,8 @@ def sdp_make_data_element (type, value):
         return maketsd (tdesc, sdesc) + struct.pack (fmt, value)
     elif type == "UInt128":
         ts = maketsd (1, 4)
-        upper = ts >> 64
-        lower = (ts & 0xFFFFFFFFFFFFFFFF)
+        upper: int = value >> 64
+        lower: int = (value & 0xFFFFFFFFFFFFFFFF)
         return ts + struct.pack ("!QQ", upper, lower)
     elif type == "SInt128":
         ts = maketsd (2, 4)
@@ -384,7 +407,7 @@ def sdp_make_data_element (type, value):
     elif type == "String":
         return maketsdl (4, len (value)) + str.encode(value)
     elif type == "Bool":
-        return maketsd (5,0) + (value and "\x01" or "\x00")
+        return maketsd (5,0) + struct.pack("!B", int(value))
     elif type == "ElemSeq":
         packedseq = bytes()
         for subtype, subval in value:
