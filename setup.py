@@ -5,11 +5,11 @@ import sys
 
 from setuptools import setup, Extension
 
-
 # This marks the wheel as always being platform-specific and not pure Python
 # See: https://stackoverflow.com/q/45150304/145504
+
 try:
-    from wheel.bdist_wheel import bdist_wheel as _bdist_wheel
+    from setuptools.command.bdist_wheel import bdist_wheel as _bdist_wheel
     class impure_bdist_wheel(_bdist_wheel):
         def finalize_options(self):
             _bdist_wheel.finalize_options(self)
@@ -21,11 +21,11 @@ except ImportError:
 
 
 packages = ['bluetooth']
-package_dir = dict()
-ext_modules = list()
-install_requires = list()
-package_data = dict()
-eager_resources = list()
+package_dir: dict[str, str] = dict()
+ext_modules: list[Extension] = list()
+install_requires: list[str] = list()
+package_data: dict[str, list[str]] = dict()
+eager_resources: list[str] = list()
 zip_safe = True
 
 
@@ -92,7 +92,6 @@ setup(name='PyBluez',
       python_requires=">=3.7",
 # for the python cheese shop
       classifiers=['Development Status :: 4 - Beta',
-                   'License :: OSI Approved :: GNU General Public License (GPL)',
                    'Programming Language :: Python',
                    'Programming Language :: Python :: 3',
                    'Programming Language :: Python :: 3.7',
@@ -106,7 +105,7 @@ setup(name='PyBluez',
                 'developers to use system Bluetooth resources. PyBluez works '\
                 'with GNU/Linux, macOS, and Windows.',
       maintainer='Piotr Karulis',
-      license='GPL',
+      license='GPL-2.0-only',
       extras_require={'ble': ['gattlib']},
       package_dir=package_dir,
       install_requires=install_requires,
